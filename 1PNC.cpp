@@ -11,14 +11,15 @@ using namespace std;
  exactly NP producers run first, then exactly NC, and the whole thing
  should repeat in that order */
 
-#define NP 1    
+#define NP 3    
 #define NC 5
 
 int buffer = 0;
-Semaphore consumerdone (1);
+Semaphore consumerdone (NP);
 Semaphore producerdone (0);
 Semaphore mtx (1); // will use as mutex
 int ncdone = 0; // number of consumers done consuming
+int npdone = 0;
 
 // each producer gets an id, which is pno	
 void producer_function (int pno){
@@ -26,7 +27,7 @@ void producer_function (int pno){
 	while (true){
 		// do necessary wait
 		consumerdone.P();		// wait for the buffer to be empty
-
+		mtx.P();
 		// after wait is done, do the produce operation
 		// you should not need to change this block
 		//mtx.P();
@@ -38,8 +39,14 @@ void producer_function (int pno){
 		// now do whatever that would indicate that the producers are done
 		// in this case, the single producer is waking up all NC consumers
 		// this will have to change when you have NP producers
-		for (int i=0; i<NC; i++)
-			producerdone.V();
+		
+		++npdone; //this keeps track
+		if (npdone == NP){
+			for (int i=0; i<NC; i++){
+				producerdone.V();
+			}
+		npdone = 0;}
+		mtx.V();
 	}
 }
 // each consumer gets an id cno
@@ -57,11 +64,15 @@ void consumer_function (int cno){
 
 		// now do whatever necessary that would indicate that the consumers are all done
 		mtx.P();
-		ncdone ++;
+		ncdone++;
 		if (ncdone == NC){ // it is the last one 
-			consumerdone.V(); // so wake up the producer
+			for (int j = 0; j < NP; j++){
+				consumerdone.V(); // so wake up the producer
+			}
 			ncdone = 0; // reset the counter
 		}
+
+		// mtx.V();
 		mtx.V();
 	}
 }
